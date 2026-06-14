@@ -1,0 +1,9 @@
+streamlit
+requests
+langchain
+langchain-community
+langchain-groq
+langchain-ollama
+langchain-tavily
+langgraph
+pydantic

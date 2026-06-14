@@ -1,0 +1,51 @@
+# ── Environment ─────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Python ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual Environments ─────────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ── FAISS Index Files ────────────────────────────────────────
+*.faiss
+*.index
+
+# ── Uploaded PDFs ────────────────────────────────────────────
+uploads/
+*.pdf
+
+# ── Model Cache ──────────────────────────────────────────────
+.cache/
+models/
+sentence_transformers_cache/
+
+# ── Streamlit ────────────────────────────────────────────────
+.streamlit/secrets.toml
+
+# ── IDEs ─────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.code-workspace
+
+# ── OS ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Logs ─────────────────────────────────────────────────────
+*.log
+logs/
