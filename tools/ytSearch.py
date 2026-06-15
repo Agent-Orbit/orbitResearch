@@ -44,7 +44,7 @@ def youtubeVideoDetails(url: str) -> dict:
         author = None
 
         if response.status_code == 200:
-            
+
             data = response.json()
             title = data.get("title")
             author = data.get("author_name")
@@ -54,8 +54,9 @@ def youtubeVideoDetails(url: str) -> dict:
 
         try:
 
-            transcript = YouTubeTranscriptApi.get_transcript(video_id)
-            transcript_text = " ".join([entry["text"] for entry in transcript])
+            ytt_api = YouTubeTranscriptApi()
+            transcript = ytt_api.fetch(video_id)
+            transcript_text = " ".join([snippet.text for snippet in transcript])
 
             max_chars = 8000
 
@@ -64,7 +65,7 @@ def youtubeVideoDetails(url: str) -> dict:
                 transcript_text = transcript_text[:max_chars] + "\n\n...[truncated]"
 
         except Exception as te:
-
+            
             transcript_text = f"Transcript unavailable: {te}"
 
         return {
