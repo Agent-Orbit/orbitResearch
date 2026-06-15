@@ -5,5 +5,12 @@ langchain-community
 langchain-groq
 langchain-ollama
 langchain-tavily
+tavily-python
+wikipedia
+pygithub
+arxiv==2.1.0
+youtube_search
+youtube-transcript-api
 langgraph
 pydantic
+lxml
