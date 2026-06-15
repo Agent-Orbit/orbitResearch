@@ -5,4 +5,4 @@ from tools import webSearch,githubSearch,wikiSearch,arxivSearch,ytSearch
 #print(webSearch.extractWeb.invoke({"url": "https://github.com/Agent-Orbit/PDF-Analyser"}))
 #print(wikiSearch.wikipediaSearch.invoke({"query": "Lionel_Messi"}))
 #print(arxivSearch.arxivSearch.invoke({"query": "Deep Learning"}))
-print(ytSearch.youtubeVideoDetails.invoke({"url": "https://www.youtube.com/watch?v=AYW386xCAKw"}))
+print(ytSearch.youtubeVideoDetails.invoke({"url": "https://www.youtube.com/watch?v=dtCS0WGZH4k"}))
