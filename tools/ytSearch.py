@@ -3,13 +3,30 @@ from langchain_community.tools import YouTubeSearchTool
 from youtube_transcript_api import YouTubeTranscriptApi
 import requests
 import re
+import ast
+from pydantic import BaseModel, Field
+
+
 
 ytSearchTool = YouTubeSearchTool()
 
+class YoutubeSearchInput(BaseModel):
 
-@tool
+    query: str = Field(description="Search query to find YouTube videos (e.g. 'LangGraph tutorial for beginners')")
+    max_results: int = Field(default=5, description="Maximum number of video URLs to return. Between 1 and 10.")
+
+
+class YoutubeVideoDetailsInput(BaseModel):
+
+    url: str = Field(description="Full YouTube video URL to fetch details for (e.g. 'https://www.youtube.com/watch?v=dQw4w9WgXcQ')")
+
+@tool(args_schema=YoutubeSearchInput)
 def youtubeSearch(query: str, max_results: int = 5) -> list:
-    """ Searches YouTube for videos matching given query and returns video URLs """
+    """
+    Search YouTube for videos matching a given query.
+    Returns a list of video URLs. Use youtubeVideoDetails to get full content of a specific video.
+    Best used for finding tutorials, talks, and video explanations of a topic.
+    """
 
     try:
 
@@ -17,28 +34,33 @@ def youtubeSearch(query: str, max_results: int = 5) -> list:
 
         if isinstance(results, str):
 
-            results = eval(results)
+            results = ast.literal_eval(results)
 
         return results
 
     except Exception as e:
 
-        return f"YouTube search failed: {e}"
+        return [f"YouTube search failed for query '{query}': {e}"]
 
-@tool
-def youtubeVideoDetails(url: str) -> dict:
-    """ Given a YouTube video URL, returns its title, description and transcript """
+@tool(args_schema=YoutubeVideoDetailsInput)
+def youtubeVideoDetails(url: str) -> str:
+    """
+    Fetch the title, author, and transcript of a YouTube video given its URL.
+    Returns full transcript text (truncated at 8000 characters for long videos).
+    Best used after youtubeSearch to read the actual content of a video.
+    """
 
     try:
 
         video_id = extractVideoId(url)
 
         if not video_id:
-            return {"error": "Could not extract video ID from URL"}
 
-        # Get title and description via oEmbed (no API key needed)
+            return f"Could not extract video ID from URL: '{url}'"
+
+        # Get title and description via oEmbed
         oembed_url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
-        response = requests.get(oembed_url)
+        response = requests.get(oembed_url,timeout=5)
 
         title = None
         author = None
@@ -68,20 +90,20 @@ def youtubeVideoDetails(url: str) -> dict:
             
             transcript_text = f"Transcript unavailable: {te}"
 
-        return {
-            "video_id": video_id,
-            "url": url,
-            "title": title,
-            "author": author,
-            "transcript": transcript_text
-        }
+        return (
+            f"Title: {title}\n"
+            f"Author: {author}\n"
+            f"Video ID: {video_id}\n"
+            f"URL: {url}\n\n"
+            f"Transcript:\n{transcript_text}"
+        )
 
     except Exception as e:
 
-        return {"error": f"Failed to fetch video details: {e}"}
+        return f"Failed to fetch video details for '{url}': {e}"
 
-def extractVideoId(url: str) -> str:
-    """ Extracts the video ID from a YouTube URL """
+def extractVideoId(url: str) -> str | None:
+    """Extract the 11-character video ID from a YouTube URL."""
 
     patterns = [
         r"(?:v=|\/)([0-9A-Za-z_-]{11}).*",
@@ -97,5 +119,4 @@ def extractVideoId(url: str) -> str:
 
             return match.group(1)
         
-
     return None
