@@ -14,7 +14,7 @@ extractTool = TavilyExtract()
 class WebSearchInput(BaseModel):
     
     query: str = Field(description="Search query to look up on the web (e.g. 'latest LangChain updates 2025')")
-    max_results: int = Field(default=5, description="Maximum number of search results to return. Between 1 and 10.")
+    max_results: str = Field(default="5", description="Maximum number of search results to return. Between 1 and 10.")
     search_depth: str = Field(default="basic", description="Search depth: 'basic' for fast results, 'advanced' for deeper research.")
 
 
@@ -23,13 +23,15 @@ class ExtractWebInput(BaseModel):
     url: str = Field(description="Full URL of the webpage to extract content from (e.g. 'https://example.com/article'). Must include https://.")
 
 
-@tool(args_schema=WebSearchInput)
-def search(query: str, max_results: int = 5, search_depth: str = "basic") -> dict:
+@tool("webSearch",args_schema=WebSearchInput)
+def search(query: str, max_results: str = "5", search_depth: str = "basic") -> dict:
     """
     Search the web for a given query using Tavily.
     Returns a list of relevant URLs, titles, and content snippets.
     Best used for finding current information, news, documentation, and general research.
     """
+
+    max_results = int(max_results)
 
     try:
 

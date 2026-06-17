@@ -4,9 +4,10 @@ from langchain_core.messages import HumanMessage
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from typing import TypedDict, Annotated
-
-from tools.llm import llmHandler
+from research_core.llm import llmHandler
 from tools import arxivSearch, githubSearch, webSearch, wikiSearch, ytSearch
+from langchain_core.messages import SystemMessage
+from utils.prompts_loader import get as get_prompt
 
 
 class ResearchState(TypedDict):
@@ -17,7 +18,7 @@ class ResearchState(TypedDict):
     summary: str                              # final synthesized output
     model_history: list                       # compressed history for LLM
     grade: str                                # "pass" | "retry" | "fail"
-    metadata: dict                            # timestamps, retry count, etc.
+    metadata: dict                           # timestamps, retry count, etc.
 
 
 class CoreResearch:
@@ -27,6 +28,8 @@ class CoreResearch:
         self.llm = self.llm_handler.llm
         self.agent = self.makeAgent()
         self.compileGraph()
+        self.model_history = [] 
+        
 
     def makeAgent(self):
 
@@ -41,7 +44,7 @@ class CoreResearch:
                 ytSearch.youtubeSearch,        
                 ytSearch.youtubeVideoDetails,
             ],
-            system_prompt="You are a research assistant. Always cite which tool produced each result.",
+            system_prompt=get_prompt("agent_system"),
             middleware=[
                 SummarizationMiddleware(model=self.llm, trigger=[("messages", 10)]),
                 ToolCallLimitMiddleware(run_limit=10),
@@ -50,13 +53,16 @@ class CoreResearch:
 
     def agent_node(self, state: ResearchState):
 
-        result = self.agent.invoke({"messages": state["messages"]})
-        sources = [m.name for m in result["messages"] if hasattr(m, "name")]
+        result = self.agent.invoke({"messages": state["model_history"] + state["messages"]})
+        sources = [m.name for m in result["messages"] if hasattr(m, "name") and m.name is not None]
+
+        updated_history = state.get("model_history", []) + result["messages"]
+        compressed = self._maybe_summarize(updated_history)
 
         return {
             "messages": result["messages"],
             "sources_used": sources,
-            "model_history": result["messages"],
+            "model_history": compressed,        
         }
 
     def grade_results(self, state: ResearchState):
@@ -73,17 +79,28 @@ class CoreResearch:
 
         content = state["messages"][-1].content
         sources = ", ".join(state["sources_used"]) if state["sources_used"] else "unknown"
-        prompt = f"Summarize the following research findings. Sources used: {sources}\n\n{content}"
+        prompt = get_prompt("synthesize", query=state["query"], sources=sources, content=content)
         summary = self.llm_handler.queryLLM(prompt)
 
         return {"summary": summary}
 
     def retry_query(self, state: ResearchState):
 
-        retries = state.get("metadata", {}).get("retries", 0)
+        retries  = state.get("metadata", {}).get("retries", 0)
+        original = state["query"]
+
+        revised_query = self.llm_handler.queryLLM(
+            get_prompt("rephrase_query", query=original)
+        ).strip().strip('"')
 
         return {
-            "messages": [HumanMessage(content=f"Try again with a broader search: {state['query']}")],
+            "messages": [HumanMessage(content=get_prompt(
+                "retry",
+                query=original,
+                attempt=retries + 1,
+                revised_query=revised_query,
+            ))],
+
             "metadata": {**state.get("metadata", {}), "retries": retries + 1}
         }
 
@@ -121,15 +138,39 @@ class CoreResearch:
             "tool_outputs": [],
             "sources_used": [],
             "summary": "",
-            "model_history": [],
+            "model_history": self.model_history,
             "grade": "",
             "metadata": {"retries": 0}
         }
 
         result = self.graph.invoke(initial_state)
+        self.model_history = result["model_history"]
 
         return {
             "summary": result["summary"],
             "sources_used": result["sources_used"],
             "metadata": result["metadata"]
         }
+    
+    def _maybe_summarize(self, messages: list) -> list:
+        """Summarize history once it exceeds 10 messages, keep last 4 as-is."""
+
+        THRESHOLD = 10
+        KEEP_RECENT = 4
+
+        if len(messages) <= THRESHOLD:
+
+            return messages                       
+
+        to_summarize = messages[:-KEEP_RECENT]    
+        recent = messages[-KEEP_RECENT:]    
+
+        combined = "\n".join(
+            m.content for m in to_summarize if hasattr(m, "content") and m.content
+        )
+        summary_text = self.llm_handler.queryLLM(
+            f"Summarize these research findings concisely:\n\n{combined}"
+        )
+
+        
+        return [SystemMessage(content=f"[Prior context summary]: {summary_text}")] + recent

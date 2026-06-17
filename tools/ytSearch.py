@@ -13,7 +13,7 @@ ytSearchTool = YouTubeSearchTool()
 class YoutubeSearchInput(BaseModel):
 
     query: str = Field(description="Search query to find YouTube videos (e.g. 'LangGraph tutorial for beginners')")
-    max_results: int = Field(default=5, description="Maximum number of video URLs to return. Between 1 and 10.")
+    max_results: str = Field(default="5", description="Maximum number of video URLs to return. Between 1 and 10.")
 
 
 class YoutubeVideoDetailsInput(BaseModel):
@@ -21,12 +21,14 @@ class YoutubeVideoDetailsInput(BaseModel):
     url: str = Field(description="Full YouTube video URL to fetch details for (e.g. 'https://www.youtube.com/watch?v=dQw4w9WgXcQ')")
 
 @tool(args_schema=YoutubeSearchInput)
-def youtubeSearch(query: str, max_results: int = 5) -> list:
+def youtubeSearch(query: str, max_results: str = "5") -> list:
     """
     Search YouTube for videos matching a given query.
     Returns a list of video URLs. Use youtubeVideoDetails to get full content of a specific video.
     Best used for finding tutorials, talks, and video explanations of a topic.
     """
+
+    max_results = int(max_results)
 
     try:
 
