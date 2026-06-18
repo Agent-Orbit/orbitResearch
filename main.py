@@ -9,7 +9,7 @@ from langchain_ollama import ChatOllama
 #print(arxivSearch.arxivSearch.invoke({"query": "Deep Learning"}))
 #print(ytSearch.youtubeVideoDetails.invoke({"url": "https://www.youtube.com/watch?v=dtCS0WGZH4k"}))
 
-c = core.CoreResearch("qwen2.5:7b")
+c = core.CoreResearch("llama-3.3-70b-versatile")
 #print(c.run("Make a deep research on Argentina's 2026 WC team."))
 
 #print(c.run("What is DL"))
