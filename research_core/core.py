@@ -11,6 +11,7 @@ from utils.prompts_loader import get as get_prompt
 
 
 class ResearchState(TypedDict):
+
     query: str
     messages: Annotated[list, add_messages]  # agent scratchpad
     tool_outputs: list                        # raw results + sources
@@ -62,7 +63,7 @@ class CoreResearch:
         return {
             "messages": result["messages"],
             "sources_used": sources,
-            "model_history": compressed,        
+            "model_history": compressed
         }
 
     def grade_results(self, state: ResearchState):
@@ -149,7 +150,7 @@ class CoreResearch:
         return {
             "summary": result["summary"],
             "sources_used": result["sources_used"],
-            "metadata": result["metadata"]
+            "metadata": result["metadata"],
         }
     
     def _maybe_summarize(self, messages: list) -> list:
