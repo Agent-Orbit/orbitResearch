@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 
-_PROMPTS_PATH = Path("prompts.json")
+_PROMPTS_PATH = Path(__file__).resolve().parent.parent / "prompts.json"
 _cache: dict | None = None
 
 
@@ -19,10 +19,15 @@ def _load() -> dict:
         if not _PROMPTS_PATH.exists():
 
             raise FileNotFoundError(f"prompts.json not found at {_PROMPTS_PATH}")
-        
+
         with open(_PROMPTS_PATH, "r", encoding="utf-8") as f:
 
-            data = json.load(f)
+            try:
+                data = json.load(f)
+
+            except json.JSONDecodeError as e:
+
+                raise ValueError(f"prompts.json is not valid JSON: {e}") from e
 
         _cache = {k: v for k, v in data.items() if not k.startswith("_")}
 
@@ -30,7 +35,7 @@ def _load() -> dict:
 
 
 def reload() -> None:
-    """Force a fresh read from disk — useful during development."""
+    """Force a fresh read from disk - useful during development."""
 
     global _cache
     _cache = None
@@ -45,8 +50,8 @@ def get(key: str, **kwargs) -> str:
         get("retry", query="LangChain agents", attempt=2, revised_query="LangChain ReAct")
 
     Raises:
-        KeyError   — if the prompt key doesn't exist in prompts.json
-        ValueError — if a required variable is missing from kwargs
+        KeyError   - if the prompt key doesn't exist in prompts.json
+        ValueError - if a required variable is missing from kwargs
     """
 
     prompts = _load()
@@ -76,10 +81,11 @@ def get_raw(key: str) -> dict:
     """Return the full entry dict (template + description + variables) for a key."""
 
     prompts = _load()
+    
     if key not in prompts:
 
         raise KeyError(f"Prompt '{key}' not found.")
-    
+
     return prompts[key]
 
 
