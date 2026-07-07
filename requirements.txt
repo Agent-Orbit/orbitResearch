@@ -1,17 +1,17 @@
-langchain==1.3.9
+langchain
 langchain-community
-langchain-core==1.4.7
-langchain-tavily==0.2.18
-langgraph==1.2.5
+langchain-core
+langchain-tavily
+langgraph
 
-pydantic==2.13.4
+pydantic
 
-PyGithub==2.9.1
+PyGithub
 
-tavily-python==0.7.26
-wikipedia==1.4.0
-arxiv==2.1.0
-youtube-search==2.2.0
-youtube-transcript-api==1.2.4
+tavily-python
+wikipedia
+arxiv
+youtube-search
+youtube-transcript-api
 
 requests
