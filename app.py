@@ -12,7 +12,7 @@ st.set_page_config(
 
 pages = {
     "🛰️ OrbitResearch": [
-        st.Page("pages/1_Chat.py", title="Chat", icon="💬"),
+        st.Page("Pages/1_Chat.py", title="Chat", icon="💬"),
     ]
 }
 
