@@ -3,6 +3,7 @@ langchain-community
 langchain-core
 langchain-tavily
 langgraph
+langchain-groq
 
 pydantic
 
