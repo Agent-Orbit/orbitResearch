@@ -19,6 +19,7 @@ st.markdown(
 WELCOME = "Hi! Ask me anything and I'll research it for you."
 
 # ---------------------------------------------------------------- sidebar
+
 with st.sidebar:
 
     st.subheader("Settings")
@@ -35,7 +36,6 @@ with st.sidebar:
     if st.button("🧹 New conversation", use_container_width=True):
 
         st.session_state.messages = [{"role": "assistant", "content": WELCOME}]
-
         agent = st.session_state.get("agent")
 
         if agent is not None:
@@ -107,22 +107,17 @@ if prompt:
 
         else:
 
-            status_box = st.status("Researching...", expanded=True)
             result = None
 
-            try:
+            with st.spinner("Researching..."):
 
-                for update in st.session_state.agent.run_stream(prompt):
-                    if isinstance(update, str):
-                        status_box.write(update)
-                    else:
-                        result = update
-                status_box.update(label="Done", state="complete", expanded=False)
+                try:
 
-            except Exception as e:
+                    result = st.session_state.agent.run(prompt)
 
-                status_box.update(label="Something went wrong", state="error", expanded=True)
-                st.error(f"Research failed: {e}")
+                except Exception as e:
+
+                    st.error(f"Research failed: {e}")
 
             if result:
 
@@ -133,7 +128,6 @@ if prompt:
                     st.caption("🔎 Sources: " + ", ".join(result["sources_used"]))
 
                 meta = result.get("metadata", {})
-
                 if meta.get("elapsed_seconds") is not None:
                     
                     st.caption(f"⏱️ {meta['elapsed_seconds']}s · retries: {meta.get('retries', 0)}")

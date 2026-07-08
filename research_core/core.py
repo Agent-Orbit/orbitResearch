@@ -28,11 +28,11 @@ class CoreResearch:
     MAX_RETRIES = 1
     RECURSION_LIMIT = 15
 
-    # Cross-turn memory budget. Kept OUTSIDE the graph state (see run/run_stream)
-    # so it can never get double-counted with the in-run "messages" scratchpad.
+    
     HISTORY_MESSAGE_LIMIT = 12
-    HISTORY_CHAR_LIMIT = 12000       # rough proxy for ~3k tokens (1 token ~ 4 chars)
-    SUMMARY_INPUT_CHAR_CAP = 2000    # per-message cap fed into any summarizer prompt
+    HISTORY_CHAR_LIMIT = 12000       
+    SUMMARY_INPUT_CHAR_CAP = 2000    
+    ERROR_PREFIX = "__ORBIT_ERROR__: "
 
     def __init__(self, model_name: str):
 
@@ -40,39 +40,59 @@ class CoreResearch:
         self.llm_handler = llmHandler(model_name)
         self.llm = self.llm_handler.llm
 
-        # Long-term, compressed conversation memory. This is the ONLY place
-        # cross-turn history lives - it is never mixed back into state["messages"]
-        # more than once per run.
+        
         self.model_history: list = []
 
         self.agent = self.makeAgent()
         self.compileGraph()
 
+    @staticmethod
+    def _build_tool_guide(tools) -> str:
+        """
+        Build the "which tool for which job" cheat sheet straight from the real
+        tool objects, instead of hand-typing tool names in prompts.json. A
+        hardcoded name in the prompt can silently drift out of sync with
+        whatever the tool is actually registered as (that mismatch is exactly
+        what causes Groq's "tool call validation failed: attempted to call
+        tool 'X' which was not in request.tools" errors) - sourcing the name
+        from tool.name makes that class of bug impossible.
+        """
+        lines = []
+
+        for t in tools:
+
+            name = getattr(t, "name", getattr(t, "__name__", "unknown_tool"))
+            desc = (getattr(t, "description", "") or "").strip().splitlines()
+            desc = desc[0] if desc else "no description available"
+            lines.append(f"- {name} → {desc}")
+
+        return "\n".join(lines)
+
     def makeAgent(self):
 
+        tools = [
+            arxivSearch.arxivSearch,
+            githubSearch.githubSearchTool,
+            webSearch.search,
+            webSearch.extractWeb,
+            wikiSearch.wikipediaSearch,
+            ytSearch.youtubeSearch,
+            ytSearch.youtubeVideoDetails,
+        ]
+
+        system_prompt = get_prompt("agent_system", tool_guide=self._build_tool_guide(tools))
+
         return create_agent(
-
             model=self.llm,
-            tools=[
-                arxivSearch.arxivSearch,
-                githubSearch.githubSearchTool,
-                webSearch.search,
-                webSearch.extractWeb,
-                wikiSearch.wikipediaSearch,
-                ytSearch.youtubeSearch,
-                ytSearch.youtubeVideoDetails,
-            ],
-
-            system_prompt=get_prompt("agent_system"),
+            tools=tools,
+            system_prompt=system_prompt,
             middleware=[
-
+                
                 SummarizationMiddleware(
-
                     model=self.llm,
                     trigger=[("tokens", 3000), ("messages", 10)],
                     keep=("messages", 4),
                 ),
-
                 ToolCallLimitMiddleware(run_limit=10),
             ],
         )
@@ -86,29 +106,34 @@ class CoreResearch:
             result = self.agent.invoke({"messages": state["messages"]})
 
         except Exception as e:
+
             
             return {
-
-                "messages": [AIMessage(content=f"I couldn't complete the research due to an error: {e}")],
+                "messages": [AIMessage(content=f"{self.ERROR_PREFIX}{e}")],
                 "sources_used": state.get("sources_used", []),
                 "tool_outputs": state.get("tool_outputs", []),
-                "grade": "fail",
             }
 
-        new_messages = result["messages"]
+        
+        input_ids = {getattr(m, "id", None) for m in state["messages"]}
+        new_messages = [m for m in result["messages"] if getattr(m, "id", None) not in input_ids]
+
+        if not new_messages:
+
+            new_messages = result["messages"][len(state["messages"]):]
 
         new_sources = [m.name for m in new_messages if getattr(m, "name", None)]
-        new_tool_outputs = [
 
+        new_tool_outputs = [
             {"tool": m.name, "content": str(m.content)[: self.SUMMARY_INPUT_CHAR_CAP]}
             for m in new_messages
             if isinstance(m, ToolMessage)
-
         ]
 
         return {
-
             "messages": new_messages,
+            # Accumulate rather than overwrite - a retry pass shouldn't erase the
+            # sources/tool output the first pass already found THIS run.
             "sources_used": state.get("sources_used", []) + new_sources,
             "tool_outputs": state.get("tool_outputs", []) + new_tool_outputs,
         }
@@ -121,18 +146,17 @@ class CoreResearch:
             if isinstance(m, AIMessage) and m.content:
 
                 return m
-            
         return messages[-1] if messages else None
 
     def grade_results(self, state: ResearchState):
 
-        if state.get("grade") == "fail":
-
-            return {"grade": "fail"}
-
         last = self._last_ai_message(state["messages"])
         content = last.content if last else ""
         content = content if isinstance(content, str) else str(content)
+
+        if content.startswith(self.ERROR_PREFIX):
+
+            return {"grade": "retry"}
 
         if not content or "I couldn't find" in content or len(content) < 100:
 
@@ -146,9 +170,14 @@ class CoreResearch:
         content = last.content if last else "Something went wrong before a research answer could be produced."
         content = content if isinstance(content, str) else str(content)
 
-        if state.get("grade") == "fail":
+        if content.startswith(self.ERROR_PREFIX):
 
-            return {"summary": content}
+            raw_error = content[len(self.ERROR_PREFIX):]
+
+            return {"summary": (
+                "I ran into a technical error while researching this and couldn't recover after a retry.\n\n"
+                f"_Details: {raw_error}_"
+            )}
 
         sources = ", ".join(sorted(set(state["sources_used"]))) if state["sources_used"] else "unknown"
         prompt = get_prompt("synthesize", query=state["query"], sources=sources, content=content)
@@ -190,10 +219,6 @@ class CoreResearch:
 
     def route_grade(self, state: ResearchState):
 
-        if state["grade"] == "fail":
-
-            return "synthesize"
-
         if state["grade"] == "retry" and state.get("metadata", {}).get("retries", 0) < self.MAX_RETRIES:
 
             return "retry"
@@ -221,14 +246,8 @@ class CoreResearch:
     
 
     def _build_initial_state(self, query: str) -> ResearchState:
-
-        # model_history (long-term, already-compressed memory) is prepended
-        # exactly once here. From this point on, state["messages"] is the single
-        # source of truth for the run - it is never re-concatenated with
-        # model_history again, which is what caused the old duplication bug.
-
+        
         return {
-
             "query": query,
             "messages": self.model_history + [HumanMessage(content=query)],
             "tool_outputs": [],
@@ -249,7 +268,6 @@ class CoreResearch:
         metadata["elapsed_seconds"] = round(time.time() - metadata.get("started_at", time.time()), 2)
 
         return {
-
             "summary": result["summary"],
             "sources_used": sorted(set(result["sources_used"])),
             "tool_outputs": result["tool_outputs"],
@@ -284,9 +302,11 @@ class CoreResearch:
                     yield "📉 First pass was thin, refining the query..."
 
                 elif state["grade"] == "fail":
+
                     yield "⚠️ Hit an error, wrapping up with what we have..."
 
                 else:
+
                     yield "📊 Findings look solid, moving to synthesis..."
 
             elif state.get("metadata", {}).get("retries", 0) > prev_state.get("metadata", {}).get("retries", 0):
@@ -344,15 +364,16 @@ class CoreResearch:
         )
 
         if not combined:
-
             return recent
 
         try:
+
             summary_text = self.llm_handler.queryLLM(
                 "Summarize these research findings concisely, keeping any concrete facts, "
                 f"numbers, and sources:\n\n{combined}"
             )
         except Exception:
+
             
             return recent
 
