@@ -1,6 +1,6 @@
 # orbitResearch
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)(https://orbit-research.streamlit.app/)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://orbit-research.streamlit.app/)
 
 Multi-agent AI research assistant that orchestrates specialized agents to search, analyze, and synthesize information from multiple sources — built with LangGraph, LangChain, and Groq-hosted LLMs.
 
@@ -33,7 +33,17 @@ orbitResearch breaks down research queries into tasks handled by a coordinated t
 
 ## Screenshots
 
-<!-- Add screenshots here -->
+**Home**
+![Home Page](docs/images/HomePage.png)
+
+**Research in Action**
+![Research](docs/images/Research.png)
+
+**Agent Procedure / Reasoning Steps**
+![Procedure](docs/images/Procedure.png)
+
+**Follow-up Query**
+![Second Query](docs/images/2ndQ.png)
 
 ## Installation
 
